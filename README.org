@@ -1,0 +1,11 @@
+* My Project
+
+This is a description of my project.
+
+** Installation
+
+To install my project, run this command: go install myproject
+
+** Usage
+
+To use my project, run this command: myproject
