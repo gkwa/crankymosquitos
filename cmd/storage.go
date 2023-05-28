@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -29,10 +31,10 @@ type EntityUsage struct {
 	AttachedInstance string // New field to store the attached EC2 instance ID
 }
 
-var totalStorageUsed int64
 var (
-	entityMutex sync.Mutex
-	entities    []EntityUsage
+	totalStorageUsed int64
+	entityMutex      sync.Mutex
+	entities         []EntityUsage
 
 	ebsStorageUsed = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -102,6 +104,8 @@ func main() {
 	sort.Sort(sort.Reverse(ByStorageUsedEntity(entities)))
 	entityMutex.Unlock()
 
+	output := []map[string]interface{}{}
+
 	for _, entity := range entities {
 		entityType := "Volume"
 		entityLink := ""
@@ -116,21 +120,45 @@ func main() {
 
 		attachedInstance := entity.AttachedInstance
 		if attachedInstance == "" {
-			attachedInstance = "Not Attached" // Label indicating the volume/snapshot is not attached
+			attachedInstance = "Not Attached"
 		}
 
-		output := fmt.Sprintf("%s ID: %s, Storage Used: %s, Region: %s, Attached Instance: %s",
-			entityType, entity.ID, formatBytes(entity.StorageUsed), entity.Region, attachedInstance)
+		size := fmt.Sprintf("%.0f", float64(entity.StorageUsed)/(1024*1024*1024)) // Remove "GB" suffix
+
+		output2 := fmt.Sprintf("Storage Used: %s, %s ID: %s, Region: %s, Attached Instance: %s",
+			formatBytes(entity.StorageUsed), entityType, entity.ID, entity.Region, attachedInstance)
 
 		if entityLink != "" {
-			output += fmt.Sprintf(", Link: %s", entityLink)
+			output2 += fmt.Sprintf(", Link: %s", entityLink)
 		}
+		fmt.Println(output2)
 
-		fmt.Println(output)
+		output = append(output, map[string]interface{}{
+			"Type":             entityType,
+			"ID":               entity.ID,
+			"StorageUsed":      size,
+			"Region":           entity.Region,
+			"AttachedInstance": attachedInstance,
+			"Link":             entityLink,
+		})
+	}
+
+	// Convert the output to JSON
+	jsonOutput, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		log.Fatalf("Failed to convert output to JSON: %v\n", err)
+	}
+
+	// Write the JSON to a file
+	err = os.WriteFile("storage.json", jsonOutput, 0o644)
+	if err != nil {
+		log.Fatalf("Failed to write JSON to file: %v\n", err)
 	}
 
 	totalStorageUsedTB := float64(totalStorageUsed) / (1024 * 1024 * 1024 * 1024)
 	fmt.Printf("Total Storage Used: %.2f TB\n", totalStorageUsedTB)
+	fmt.Printf("Output written to output.json\n")
+	fmt.Printf("Listening for requests on localhost:8080/metrics...\n")
 
 	// Start the Prometheus HTTP server
 	http.Handle("/metrics", promhttp.Handler())
