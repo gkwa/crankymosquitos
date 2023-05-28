@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/taylormonacelli/lemondrop"
 )
 
 type ByStorageUsedEntity []EntityUsage
@@ -67,7 +69,7 @@ func main() {
 	prometheus.MustRegister(snapshotStorageUsed)
 	prometheus.MustRegister(totalStorageUsedMetric)
 
-	regions, err := GetAllAwsRegions()
+	regions, err := lemondrop.GetAllAwsRegions()
 	if err != nil {
 		log.Fatalf("Failed to retrieve AWS regions: %v\n", err)
 	}
@@ -81,7 +83,7 @@ func main() {
 		wg.Add(2)
 
 		go func(region string) {
-			client, err := GetEc2Client(region)
+			client, err := lemondrop.GetEc2Client(region)
 			if err != nil {
 				log.Printf("Failed to create EC2 client for region %s: %v\n", region, err)
 				wg.Done()
@@ -94,7 +96,7 @@ func main() {
 		}(*region.RegionName)
 
 		go func(region string) {
-			client, err := GetEc2Client(region)
+			client, err := lemondrop.GetEc2Client(region)
 			if err != nil {
 				log.Printf("Failed to create EC2 client for region %s: %v\n", region, err)
 				wg.Done()
