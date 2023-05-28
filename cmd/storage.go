@@ -38,7 +38,7 @@ var (
 
 	ebsStorageUsed = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "ebs_storage_used",
+			Name: "aws_ebs_storage_used",
 			Help: "EBS storage used by volume",
 		},
 		[]string{"volume_id", "region", "attached_instance"}, // Added "attached_instance" label
@@ -46,10 +46,17 @@ var (
 
 	snapshotStorageUsed = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "snapshot_storage_used",
+			Name: "aws_snapshot_storage_used",
 			Help: "Snapshot storage used by snapshot",
 		},
 		[]string{"snapshot_id", "region", "attached_instance"}, // Added "attached_instance" label
+	)
+
+	totalStorageUsedMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "aws_total_storage_used",
+			Help: "Total storage used by all volumes and snapshots",
+		},
 	)
 )
 
@@ -57,6 +64,7 @@ func main() {
 	// Register the Prometheus metrics
 	prometheus.MustRegister(ebsStorageUsed)
 	prometheus.MustRegister(snapshotStorageUsed)
+	prometheus.MustRegister(totalStorageUsedMetric)
 
 	regions, err := GetAllAwsRegions()
 	if err != nil {
@@ -103,6 +111,7 @@ func main() {
 	entityMutex.Lock()
 	sort.Sort(sort.Reverse(ByStorageUsedEntity(entities)))
 	entityMutex.Unlock()
+	totalStorageUsedMetric.Set(float64(totalStorageUsed))
 
 	output := []map[string]interface{}{}
 
