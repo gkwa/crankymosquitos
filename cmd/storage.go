@@ -32,9 +32,10 @@ type EntityUsage struct {
 }
 
 var (
-	totalStorageUsed int64
-	entityMutex      sync.Mutex
-	entities         []EntityUsage
+	totalStorageUsed   int64
+	entityMutex        sync.Mutex
+	entities           []EntityUsage
+	concurrentChannels = 100 // Set the default concurrent channel count
 
 	ebsStorageUsed = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -73,13 +74,13 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	semaphore := make(chan struct{}, concurrentChannels)
+
 	// Launch goroutines to query volumes and snapshots concurrently
 	for _, region := range regions {
 		wg.Add(2)
 
 		go func(region string) {
-			log.Printf("Querying volumes in region: %s\n", region)
-
 			client, err := GetEc2Client(region)
 			if err != nil {
 				log.Printf("Failed to create EC2 client for region %s: %v\n", region, err)
@@ -87,12 +88,12 @@ func main() {
 				return
 			}
 
+			semaphore <- struct{}{} // Acquire a semaphore slot
 			getEBSStorageUsed(client, region, &wg)
+			<-semaphore // Release the semaphore slot
 		}(*region.RegionName)
 
 		go func(region string) {
-			log.Printf("Querying snapshots in region: %s\n", region)
-
 			client, err := GetEc2Client(region)
 			if err != nil {
 				log.Printf("Failed to create EC2 client for region %s: %v\n", region, err)
@@ -100,7 +101,9 @@ func main() {
 				return
 			}
 
+			semaphore <- struct{}{} // Acquire a semaphore slot
 			getSnapshotStorageUsed(client, region, &wg)
+			<-semaphore // Release the semaphore slot
 		}(*region.RegionName)
 	}
 
@@ -240,6 +243,7 @@ func getVolumeName(client *ec2.Client, volumeID string) string {
 func getEBSStorageUsed(client *ec2.Client, region string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	log.Printf("Querying volumes in region: %s\n", region)
 	params := &ec2.DescribeVolumesInput{}
 	resp, err := client.DescribeVolumes(context.Background(), params)
 	if err != nil {
@@ -292,6 +296,7 @@ func getEBSStorageUsed(client *ec2.Client, region string, wg *sync.WaitGroup) {
 
 func getSnapshotStorageUsed(client *ec2.Client, region string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	log.Printf("Querying snapshots in region: %s\n", region)
 
 	params := &ec2.DescribeSnapshotsInput{
 		OwnerIds: []string{"self"},
