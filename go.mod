@@ -5,7 +5,7 @@ go 1.21.1
 toolchain go1.23.2
 
 require (
-	github.com/aws/aws-sdk-go v1.44.271
+	github.com/aws/aws-sdk-go v1.55.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.98.0
 	github.com/prometheus/client_golang v1.15.1
 	github.com/spf13/cobra v1.7.0
