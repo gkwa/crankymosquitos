@@ -30,7 +30,7 @@ jobs:
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v4
       with:
-        args: release --snapshot --skip-publish --clean
+        args: release --snapshot --skip=publish --clean
     - name: Colored Output Test
       if: runner.os == 'Linux'
       shell: script -q -e -c "bash {0}"
