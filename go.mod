@@ -2,7 +2,7 @@ module github.com/taylormonacelli/crankymosquitos
 
 go 1.26.0
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8
